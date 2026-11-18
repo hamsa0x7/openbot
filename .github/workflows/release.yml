@@ -124,6 +124,15 @@ jobs:
           $tag = "${{ steps.versioning.outputs.tag }}"
           $title = "OpenBot $tag"
           $files = Get-ChildItem dist/*.exe, dist/latest.yml, dist/SHA256SUMS-windows-x64.txt -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
-          gh release create $tag $files --title $title --generate-notes --clobber
+          
+          # Check if release already exists on GitHub
+          $existingReleases = gh release list --json tagName -q ".[].tagName" 2>$null
+          if ($existingReleases -contains $tag) {
+            Write-Output "Release $tag exists. Uploading assets..."
+            gh release upload $tag $files --clobber
+          } else {
+            Write-Output "Creating release $tag..."
+            gh release create $tag $files --title $title --generate-notes
+          }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
