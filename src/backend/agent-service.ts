@@ -147,6 +147,7 @@ import {
   DEFAULT_CUSTOM_PROVIDER_HARNESS,
   DEFAULT_PROVIDER_ACCOUNT_ID,
   DEFAULT_RESPONSE_STYLE,
+  GITHUB_CONNECTOR_MCP_SERVER_ID,
   isContextResetMarker,
   isCustomProviderHarness,
   isReservedMcpServerName,
@@ -449,6 +450,8 @@ export interface AgentServiceOptions {
   crm?: (() => CrmHandle | null) | undefined;
   /** Whether a member who is not an owner or admin can see the agent; the `crm_*` tools then refuse it. */
   crmAgentVisibleToMembers?: ((agentId: string) => boolean) | undefined;
+  /** Whether a person who sent a message can change the server settings: an owner or admin. */
+  personCanAdminister?: ((personId: string) => boolean) | undefined;
   sidebarLayout?: AgentSidebar | null;
   /** The Library folders of this host, for the `folder` of an attach call, `list_library_folders` and `organize_library`. */
   libraryFolders?: AgentLibraryFolders | null;
@@ -594,6 +597,20 @@ export interface AgentServiceOptions {
 
 /** How long a user send's `clientMessageId` answers a retry. A retry follows a lost reply, not a day. */
 const USER_SEND_RETRY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** The key that makes a retry of one user message, with the same client id, a no-op. */
+function userSendKey(sender: ConversationMessageSender | undefined, agentId: string, clientMessageId: string): string {
+  return `user-send:${createHash("sha256")
+    .update(JSON.stringify([sender?.id ?? null, agentId, clientMessageId]))
+    .digest("hex")}`;
+}
+
+/** The mailbox key of a create that a Team API client can send again (`agent-create-operation-v1`). */
+function agentCreateKey(sender: ConversationMessageSender | undefined, operationId: string): string {
+  return `agent-create:${createHash("sha256")
+    .update(JSON.stringify([sender?.id ?? null, operationId]))
+    .digest("hex")}`;
+}
 /** The `send_message` recipient limit, so one message can reach every section-mate the prompt names. */
 const MAX_SECTION_TEAMMATES = 32;
 /** How long an archive waits for the provider to end the turn that it stopped. After it, the archive is refused. */
@@ -636,6 +653,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
   #scope = Scope.makeUnsafe();
   /** User sends still before their mailbox write, by idempotency key: a retry joins the first call. */
   readonly #pendingUserSends = new Map<string, Deferred.Deferred<QueuedMessageReceipt, AgentLifecycleFailed>>();
+  readonly #pendingTaskStarts = new Map<string, Deferred.Deferred<AgentTask, AgentLifecycleFailed>>();
+  readonly #pendingAgentCreates = new Map<string, Deferred.Deferred<AgentSummary, AgentLifecycleFailed>>();
   readonly #store: AgentStore;
   readonly #mailbox: MailboxStore;
   readonly #browser: AgentBrowserHost;
@@ -955,7 +974,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         listAgents: () => this.listAgents(),
         excludedAgents: () => new Set([...this.#duplication.pendingAgents(), ...this.#removal.deleting()]),
         isRunning: () => this.#initialized && !this.#stopping,
-        usageLimited: (agentId) => !this.#usageLimits.mayDrain(agentId),
+        // A ready backup model or pool account takes the run: the drain moves the agent to it, as it
+        // does for a chat message. Only an agent with no ready backup skips the run (#11785).
+        usageLimited: (agentId) =>
+          !this.#usageLimits.mayDrain(agentId) &&
+          this.#usageLimitBackup(agentId) === undefined &&
+          !this.#poolBackup(agentId),
         routineThread: (agentId, routineId, routineName) => this.#tasks.routineThread(agentId, routineId, routineName),
         routineDeleted: (agentId, routineId) => {
           const thread = this.#tasks.threadOfRoutine(agentId, routineId);
@@ -1054,13 +1078,19 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
               );
             yield* this.channels.recover();
             this.#channelRoutines.reconcileAll();
-            yield* this.#boot.backfillProviderHistory().pipe(Effect.forkIn(this.#scope));
+            // One after the other, so the two background passes do not compete with the start. A failed
+            // backfill (a typed error or a defect) must not stop the compaction at each start.
+            yield* this.#boot.backfillProviderHistory().pipe(
+              Effect.catchCause((cause) => (Cause.hasInterruptsOnly(cause) ? Effect.failCause(cause) : Effect.void)),
+              Effect.andThen(this.#boot.compactThreadEvents()),
+              Effect.forkIn(this.#scope),
+            );
           }).pipe(
             // Limits are not kept over a restart, so an agent on a backup model goes back first.
             // The drains also run when a step above fails, so no settled lane stays idle.
             Effect.ensuring(
               Effect.sync(() => {
-                for (const agent of this.#store.list()) this.#drain.scheduleDrain(agent.id);
+                this.#drain.scheduleDrains(this.#store.list().map((agent) => agent.id));
                 // An edit from before the restart holds its message for a new time.
                 for (const agentId of this.#mailbox.agentsWithEditHolds()) this.#queue.wakeAfterEditHold(agentId);
               }),
@@ -1165,9 +1195,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
             : this.#endpoints.moveAccountAgentsOffUnlistedModels(provider, accountId),
         onProviderResumed: (provider) => {
           this.#drain.providerResumed(provider);
-          for (const agent of this.#store.list()) {
-            if (providerForAgent(agent) === provider) this.#drain.scheduleDrain(agent.id);
-          }
+          this.#drain.scheduleDrains(
+            this.#store
+              .list()
+              .filter((agent) => providerForAgent(agent) === provider)
+              .map((agent) => agent.id),
+          );
           this.#retryHeldMoves();
         },
         onAccountsChanged: () => this.#retryHeldMoves(),
@@ -1638,7 +1671,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         const agent = this.#store.get(agentId);
         return (
           agent !== undefined &&
-          this.#usageLimits.isFailed(usageLimitOf(agentModelChoice(agent))) &&
+          this.#usageLimits.passesOver(agentId) &&
           (this.#usageLimitBackup(agentId) !== undefined || this.#poolBackup(agentId))
         );
       },
@@ -1777,9 +1810,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       memory: hostMemory,
       chosenTurnLimit: () => hostTurnLimits?.turnLimit() ?? null,
       hooks: {
-        scheduleAll: () => {
-          for (const agent of this.#store.list()) this.#drain.scheduleDrain(agent.id);
-        },
+        scheduleAll: () => this.#drain.scheduleDrains(this.#store.list().map((agent) => agent.id)),
         retryWaiting: () => this.#drain.retrySlotWaiters(),
         releaseIdleThreads: () =>
           Effect.sync(() => this.#codexIdleSessions.releaseIdle()).pipe(
@@ -1863,6 +1894,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         servesModel: (model, provider) => this.#endpoints.serves(model, provider),
         requeueChannelDelivery: (deliveryId, continueWork) => this.#requeueChannelDelivery(deliveryId, continueWork),
         mayContinueOnBackup: (agentId) => this.#mayContinueStoppedWork(agentId),
+        mayFailOver: (agentId) => this.#mayFailOver(agentId),
         turnEnded: (turnId) => this.#turn.hasEnded(turnId),
         turnRestarting: (turnId) => this.#turn.forgetEnded(turnId),
         deliveriesStarting: (deliveryIds, start) => this.#turn.deliveriesStarting(deliveryIds, start),
@@ -1992,7 +2024,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         redactMcp: (text) => this.#mcp.redact(text),
         emitToolUsage: (usage) => this.emit("toolUsage", usage),
         turnModel: (agentId, turnId) => this.#drain.modelForTurn(agentId, turnId),
-        mayFailOver: (agentId) => this.#usageLimitBackup(agentId) !== undefined || this.#poolBackup(agentId),
+        mayFailOver: (agentId) => this.#mayFailOver(agentId),
         poolHasOtherAccount: (agentId) => this.#poolHasOtherAccount(agentId),
         mayContinueOnBackup: (agentId) => this.#mayContinueStoppedWork(agentId),
         requeueChannelDelivery: (deliveryId, continueWork) => this.#requeueChannelDelivery(deliveryId, continueWork),
@@ -2069,12 +2101,12 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
             yield* this.#providers
               .stopAgentProcess(agentId)
               .pipe(Effect.mapError((failure) => new AgentRemovalFailed({ cause: failure.cause })));
-            if (process.platform !== "win32") return;
+            if (process.platform !== "win32") return false;
             const release = yield* Effect.try({
               try: () => this.#releasesSharedOpenCode(agentId),
               catch: (cause) => new AgentRemovalFailed({ cause }),
             });
-            if (release) yield* this.#providers.releaseSharedProcess("opencode");
+            return release ? yield* this.#providers.releaseSharedProcess("opencode") : false;
           }),
         currentClient: (provider) => this.#providers.currentClient(provider),
         usageLimitHolds: (agentId) => !this.#usageLimits.mayDrain(agentId),
@@ -2113,9 +2145,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       ...(options.screenCapture === undefined ? {} : { screenCapture: options.screenCapture }),
       ...(options.videoReader === undefined ? {} : { videoReader: options.videoReader }),
       ...(options.fitImage === undefined ? {} : { fitImage: options.fitImage }),
-      // The saved rows that the agent gets. The built-in servers are left out: OpenBot gives their
-      // tools another way, and their bearer is the main process's. `mcpFallbackRunsServer` leaves out a
-      // stdio server of a Workspace only agent.
+      // The saved rows that the agent gets, and the GitHub connection, whose bearer the gateway gets
+      // from the main process (#12035). Computer Use is left out: OpenBot gives its tools another way.
+      // `mcpFallbackRunsServer` leaves out a stdio server of a Workspace only agent.
       mcpServers: mcpServersFromGateway(
         this.#mcp,
         options.prepareMcpTest,
@@ -2125,7 +2157,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           const saved = new Set(this.#mcp.list().map((config) => config.id));
           return this.enabledMcpServers(agentId).filter(
             (config) =>
-              saved.has(config.id) && mcpFallbackRunsServer(config, agent) && !isReservedMcpServerName(config.name),
+              (config.id === GITHUB_CONNECTOR_MCP_SERVER_ID ||
+                (saved.has(config.id) && !isReservedMcpServerName(config.name))) &&
+              mcpFallbackRunsServer(config, agent),
           );
         },
         (mcpServerId, agentId) => this.#mcpAgentAccess?.(mcpServerId, agentId) ?? true,
@@ -2141,6 +2175,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       ...(options.crmAgentVisibleToMembers === undefined
         ? {}
         : { crmAgentVisibleToMembers: options.crmAgentVisibleToMembers }),
+      ...(options.personCanAdminister === undefined ? {} : { personCanAdminister: options.personCanAdminister }),
       apiKeys: options.agentApiKeys ?? null,
       vaultItems: options.vaultItems ?? null,
       codexSubagentParent: (childThreadId) => this.#turn.codexSubagentParent(childThreadId),
@@ -2486,10 +2521,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
    * stops no running turn, and the next turn waits.
    */
   turnLimitsChanged(): void {
-    for (const agent of this.#store.list()) {
-      this.#tasks.changed(agent.id);
-      this.#drain.scheduleDrain(agent.id);
-    }
+    const agentIds = this.#store.list().map((agent) => agent.id);
+    for (const agentId of agentIds) this.#tasks.changed(agentId);
+    this.#drain.scheduleDrains(agentIds);
     this.#drain.retrySlotWaiters();
   }
 
@@ -3470,6 +3504,10 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
    * `sender` is the person who writes the first message, as `sendMessage` takes it. `welcome` marks
    * that message as the client's setup message (`agent-welcome-v1`): the agent answers it, and no
    * chat, queue or preview shows it.
+   *
+   * An `operationId` that the same sender used within a day returns the agent of that create, with no
+   * second agent and no second initial message. The key goes into the mailbox with the initial
+   * message, so it is stored only when the create is complete.
    */
   readonly createAgent = Effect.fn("AgentService.createAgent")(function* (
     this: AgentService,
@@ -3480,6 +3518,37 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     welcome = false,
     // Another agent made this agent with `create_agent`, so the first turn can end with no answer.
     agentSetup = false,
+  ): Effect.fn.Return<AgentSummary, AgentLifecycleFailed> {
+    const create = (key?: string) =>
+      this.#createAgent(input, configure, profileOperationId, sender, welcome, agentSetup, key);
+    if (!input.operationId) return yield* create();
+    const key = agentCreateKey(sender, input.operationId);
+    this.#mailbox.forgetIdempotencyKeys("agent-create:", new Date(Date.now() - USER_SEND_RETRY_WINDOW_MS));
+    const pending = this.#pendingAgentCreates.get(key);
+    if (pending) return yield* Deferred.await(pending);
+    const createdId = this.#mailbox.receiptForKey(key)?.deliveries[0]?.recipientAgentId;
+    const created = createdId ? this.#store.get(createdId) : undefined;
+    if (created) return created;
+    // The first create failed, or its agent or its initial message was deleted: this create makes a
+    // new one. The key lives with the initial message, so deleting the message forgets it too.
+    this.#mailbox.forgetIdempotencyKey(key);
+    const start = Deferred.makeUnsafe<AgentSummary, AgentLifecycleFailed>();
+    this.#pendingAgentCreates.set(key, start);
+    return yield* create(key).pipe(
+      Effect.onExit((exit) => Deferred.done(start, exit)),
+      Effect.ensuring(Effect.sync(() => this.#pendingAgentCreates.delete(key))),
+    );
+  }).bind(this);
+
+  readonly #createAgent = Effect.fn("AgentService.createNewAgent")(function* (
+    this: AgentService,
+    input: CreateAgentInput,
+    configure: ((agent: AgentSummary) => Effect.Effect<AgentSummary, AgentLifecycleFailed>) | undefined,
+    profileOperationId: string | undefined,
+    sender: ConversationMessageSender | undefined,
+    welcome: boolean,
+    agentSetup: boolean,
+    idempotencyKey: string | undefined,
   ) {
     const initialMessage = yield* lifecycleStep("validate initial message", () => {
       const text = input.initialMessage.trim();
@@ -3510,7 +3579,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           { agentId: agent.id, text: initialMessage, attachmentDraftIds: [] },
           sender,
           undefined,
-          undefined,
+          idempotencyKey,
           welcome,
           agentSetup,
         );
@@ -3785,10 +3854,23 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     queueWhileBusy = true,
   ): Effect.Effect<AgentSummary, AgentLifecycleFailed> {
     return this.#endpoints
-      .runExclusive(() =>
-        this.#applyAgentUpdate(this.#withAccountModel(input), initiatingAgentId, null, queueWhileBusy),
-      )
+      .runExclusive(() => {
+        const before = this.#store.get(input.agentId);
+        return this.#applyAgentUpdate(this.#withAccountModel(input), initiatingAgentId, null, queueWhileBusy).pipe(
+          Effect.tap((agent) => Effect.sync(() => this.#modelChosen(before, agent))),
+        );
+      })
       .pipe(Effect.mapError((failure) => new AgentLifecycleFailed({ operation: "updateAgent", cause: failure.cause })));
+  }
+
+  /**
+   * A requested change moved the agent to another model, now or when it is next idle, so a provider
+   * error that holds that model gets one try. Automatic moves do not come through here.
+   */
+  #modelChosen(before: AgentSummary | undefined, after: AgentSummary): void {
+    const chosen = (agent: AgentSummary): AgentModelChoice => agent.pendingRuntime ?? agentModelChoice(agent);
+    if (before && !sameAgentModelChoice(chosen(before), chosen(after)))
+      this.#usageLimits.chosen(after.id, usageLimitOf(chosen(after)));
   }
 
   /**
@@ -4302,7 +4384,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     // A message from the user tries the held model first: the limit can have ended outside OpenBot.
     // A refused try holds the agent again, and the drain after it moves (#7068).
     if (limited && this.#usageLimits.mayTry(agentId) && this.#modelChoiceReady(agentModelChoice(agent))) return null;
-    const failed = !limited && this.#usageLimits.isFailed(usageLimitOf(agentModelChoice(agent)));
+    // A model that a person or an agent chose gets one turn before the agent leaves it again (#11992).
+    const failed = !limited && this.#usageLimits.passesOver(agentId);
     if (!limited && !failed) return null;
     // A channel task that the limit refused went back to its channel, so the queue can be empty.
     if (!this.#hasWaitingWork(agentId)) return null;
@@ -4338,6 +4421,11 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       model: choice.model,
       ...(pick === DEFAULT_PROVIDER_ACCOUNT_ID ? {} : { providerAccountId: pick }),
     };
+  }
+
+  /** Whether a provider error moves this agent to a backup model or to another account of its pool. */
+  #mayFailOver(agentId: string): boolean {
+    return this.#usageLimitBackup(agentId) !== undefined || this.#poolBackup(agentId);
   }
 
   /** Whether the agent's pooled provider has another account to move to now. */
@@ -6484,6 +6572,30 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     sender?: ConversationMessageSender,
     timezone?: string,
   ): Effect.fn.Return<AgentTask, AgentLifecycleFailed> {
+    if (!input.clientMessageId) return yield* this.#startTask(input, sender, timezone);
+    // A retry with the same client id gets the task that the first request made, not a second one.
+    const key = userSendKey(sender, input.agentId, input.clientMessageId);
+    const pending = this.#pendingTaskStarts.get(key);
+    if (pending) return yield* Deferred.await(pending);
+    const startedTaskId = this.#mailbox.taskIdForKey(key);
+    if (startedTaskId && this.#tasks.has(input.agentId, startedTaskId))
+      return this.#tasks.publicTask(this.#tasks.require(input.agentId, startedTaskId));
+    // The first start stored its message and then failed, so its task went: this start makes a new one.
+    if (startedTaskId) this.#mailbox.forgetIdempotencyKey(key);
+    const start = Deferred.makeUnsafe<AgentTask, AgentLifecycleFailed>();
+    this.#pendingTaskStarts.set(key, start);
+    return yield* this.#startTask(input, sender, timezone).pipe(
+      Effect.onExit((exit) => Deferred.done(start, exit)),
+      Effect.ensuring(Effect.sync(() => this.#pendingTaskStarts.delete(key))),
+    );
+  }).bind(this);
+
+  readonly #startTask = Effect.fn("AgentService.startNewTask")(function* (
+    this: AgentService,
+    input: StartAgentTaskInput,
+    sender: ConversationMessageSender | undefined,
+    timezone: string | undefined,
+  ): Effect.fn.Return<AgentTask, AgentLifecycleFailed> {
     const task = yield* lifecycleStep("start task", () => {
       if (!this.listAgents().some((agent) => agent.id === input.agentId))
         throw new Error(sourceText("error.agent.unknown", { id: input.agentId }));
@@ -6898,9 +7010,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     timezone?: string,
   ): Effect.fn.Return<QueuedMessageReceipt, AgentLifecycleFailed> {
     if (!input.clientMessageId) return yield* this.#sendUserMessage(input, sender, timezone);
-    const idempotencyKey = `user-send:${createHash("sha256")
-      .update(JSON.stringify([sender?.id ?? null, input.agentId, input.clientMessageId]))
-      .digest("hex")}`;
+    const idempotencyKey = userSendKey(sender, input.agentId, input.clientMessageId);
     // Every user message adds a key, and the map is persisted whole, so keys older than the window go.
     this.#mailbox.forgetIdempotencyKeys("user-send:", new Date(Date.now() - USER_SEND_RETRY_WINDOW_MS));
     const stored = this.#mailbox.receiptForKey(idempotencyKey);
@@ -6980,6 +7090,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     // The task can close while the message is stored, and a closed task shows no queue to cancel it.
     if (task && this.#tasks.threadId(task.taskId) === null) {
       yield* this.cancelQueuedMessage(agent.id, delivery.delivery.id);
+      // The send failed, so a retry with the same client id must send again, not get the cancelled receipt.
+      if (idempotencyKey) this.#mailbox.forgetIdempotencyKey(idempotencyKey);
       return yield* new AgentLifecycleFailed({
         operation: "send message",
         cause: new Error(sourceText("error.backend.threadArchived")),
@@ -7316,6 +7428,32 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
           (failure) => new AgentLifecycleFailed({ operation: "load interrupted agent", cause: failure.cause }),
         ),
       );
+    // The turn ended, and only its Codex subagents work on: Codex stops a subagent only with a Stop of
+    // its own turn (#11871). The client then also stops the subagents of that subagent.
+    const children = executionThreadId || mayStop ? [] : this.#turn.workingCodexChildren(agentId, turnId);
+    if (children.length > 0 && this.#turn.turnStartedAt(turnId) === null) {
+      // Each subagent stops on its own: one that ended meanwhile does not keep the others working.
+      const exits = yield* Effect.forEach(
+        children,
+        (child) =>
+          Effect.exit(
+            child.client.request(
+              "turn/interrupt",
+              { threadId: child.threadId, turnId: child.turnId },
+              decodeRecordResponse,
+            ),
+          ),
+        { concurrency: "unbounded" },
+      );
+      const failure = exits.every(Exit.isFailure) ? exits.find(Exit.isFailure) : undefined;
+      if (failure) {
+        return yield* new AgentLifecycleFailed({
+          operation: "interrupt subagent turn",
+          cause: Cause.squash(failure.cause),
+        });
+      }
+      return true;
+    }
     // No provider runs a turn whose end failed part way or whose provider exited, so it has nothing to
     // stop. The Stop then settles what OpenBot still holds for the turn, and the queue frees (#2214).
     // A turn that the drain started can wait for its `turn/started` with a snapshot already on it:

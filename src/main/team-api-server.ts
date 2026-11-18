@@ -39,6 +39,7 @@ import { AGENT_ACCESS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-
 import { AGENT_ACTIVE_QUEUES_CAPABILITY } from "@openbot/contracts/team-protocol/agent-active-queues-v1";
 import { AGENT_BACKUP_MODELS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-backup-models-v1";
 import { AGENT_COLORS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-colors-v1";
+import { AGENT_CREATE_OPERATION_CAPABILITY } from "@openbot/contracts/team-protocol/agent-create-operation-v1";
 import { AGENT_DEFAULTS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-defaults-v1";
 import { AGENT_FAST_MODE_CAPABILITY } from "@openbot/contracts/team-protocol/agent-fast-mode-v1";
 import { AGENT_FOLDERS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-folders-v1";
@@ -284,6 +285,7 @@ import { Deferred, Effect, Exit, Scope } from "effect";
 import type * as Ws from "ws";
 import { AgentDuplicationFailed, duplicateAgentIntoLayout } from "../backend/agent/duplication-gate";
 import { AgentMemorySelectionError } from "../backend/agent-memory-store";
+import { AgentThreadLimitError } from "../backend/agent-tasks/agent-tasks";
 import { runCauseEffect } from "../backend/effect-boundary";
 import { McpServerError } from "../backend/mcp-server-store";
 import { canConfineProcesses } from "../backend/process-confinement";
@@ -1450,9 +1452,17 @@ export class TeamApiServer {
         error instanceof TeamStoreError ||
         error instanceof McpServerError ||
         error instanceof AnalyticsInputError ||
-        error instanceof AgentMemorySelectionError;
+        error instanceof AgentMemorySelectionError ||
+        error instanceof AgentThreadLimitError;
+      // The thread limit answers 409, as a branch at the limit does.
       const status =
-        error instanceof HttpError || error instanceof RemoteScreenError ? error.status : expected ? 400 : 500;
+        error instanceof HttpError || error instanceof RemoteScreenError
+          ? error.status
+          : error instanceof AgentThreadLimitError
+            ? 409
+            : expected
+              ? 400
+              : 500;
       // Catalog text with no placeholder is safe to show, and the user can act on it. Any other
       // unexpected text stays private.
       const message =
@@ -2809,6 +2819,8 @@ export class TeamApiServer {
           if (capability === AGENT_THREAD_REQUESTS_CAPABILITY) return this.#options.agentTasks !== undefined;
           // The queue list uses the agent operations, which every host has.
           if (capability === AGENT_ACTIVE_QUEUES_CAPABILITY) return true;
+          // The create route reads the id itself, and the mailbox keeps the key with the initial message.
+          if (capability === AGENT_CREATE_OPERATION_CAPABILITY) return true;
           if (capability === AGENT_THREADS_CAPABILITY) return this.#options.agentTasks !== undefined;
           if (capability === AGENT_TASK_UI_BLOCKS_CAPABILITY) return this.#options.agentTasks !== undefined;
           if (capability === AGENT_THREAD_READS_CAPABILITY) return this.#options.agentTasks !== undefined;
