@@ -101,13 +101,6 @@ jobs:
         with:
           install: frozen
 
-      - name: Install and verify provider control artifacts
-        shell: bash
-        run: |
-          bun scripts/install-codex-runtime.ts win32 x64
-          bun scripts/install-claude-runtime.ts win32 x64
-          bun scripts/install-grok-runtime.ts win32 x64
-
       - name: Build Windows x64 installer
         shell: pwsh
         run: |
