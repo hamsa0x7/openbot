@@ -94,11 +94,11 @@ export function CreateThreadDialog() {
               <div class="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  class="flex flex-col p-2.5 rounded-lg border text-left transition-colors"
-                  classList={{
-                    "border-primary bg-primary/10 text-primary font-medium": gitPolicy() === "automatic",
-                    "border-border bg-card text-muted-foreground hover:border-border/80": gitPolicy() !== "automatic",
-                  }}
+                  class={`flex flex-col p-2.5 rounded-lg border text-left transition-colors ${
+                    gitPolicy() === "automatic"
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border bg-card text-muted-foreground hover:border-border/80"
+                  }`}
                   onClick={() => setGitPolicy("automatic")}
                 >
                   <div class="flex items-center gap-1 text-xs">
@@ -110,11 +110,11 @@ export function CreateThreadDialog() {
 
                 <button
                   type="button"
-                  class="flex flex-col p-2.5 rounded-lg border text-left transition-colors"
-                  classList={{
-                    "border-primary bg-primary/10 text-primary font-medium": gitPolicy() === "review",
-                    "border-border bg-card text-muted-foreground hover:border-border/80": gitPolicy() !== "review",
-                  }}
+                  class={`flex flex-col p-2.5 rounded-lg border text-left transition-colors ${
+                    gitPolicy() === "review"
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border bg-card text-muted-foreground hover:border-border/80"
+                  }`}
                   onClick={() => setGitPolicy("review")}
                 >
                   <div class="flex items-center gap-1 text-xs">

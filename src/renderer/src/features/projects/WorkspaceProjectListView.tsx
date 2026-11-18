@@ -57,10 +57,9 @@ export function WorkspaceProjectListView() {
                 <div class="flex flex-col rounded-md border border-border/40 overflow-hidden bg-card/40">
                   {/* Project Summary Row */}
                   <div
-                    class="flex items-center justify-between px-2.5 py-2 cursor-pointer transition-colors hover:bg-accent/50"
-                    classList={{
-                      "bg-accent/80 font-medium": isSelected(),
-                    }}
+                    class={`flex items-center justify-between px-2.5 py-2 cursor-pointer transition-colors hover:bg-accent/50 ${
+                      isSelected() ? "bg-accent/80 font-medium" : ""
+                    }`}
                     onClick={() => void projects.selectProject(proj.id)}
                   >
                     <div class="flex items-center gap-2 min-w-0">
@@ -119,11 +118,11 @@ export function WorkspaceProjectListView() {
                           const isThreadActive = () => projects.activeThreadId() === thread.id;
                           return (
                             <div
-                              class="flex items-center justify-between rounded px-2 py-1 text-xs cursor-pointer transition-colors"
-                              classList={{
-                                "bg-primary/15 text-primary font-medium": isThreadActive(),
-                                "hover:bg-accent/60 text-muted-foreground": !isThreadActive(),
-                              }}
+                              class={`flex items-center justify-between rounded px-2 py-1 text-xs cursor-pointer transition-colors ${
+                                isThreadActive()
+                                  ? "bg-primary/15 text-primary font-medium"
+                                  : "hover:bg-accent/60 text-muted-foreground"
+                              }`}
                               onClick={() => void projects.selectThread(thread.id)}
                             >
                               <div class="flex items-center gap-1.5 truncate">
@@ -132,13 +131,11 @@ export function WorkspaceProjectListView() {
                               </div>
                               <div class="flex items-center gap-1">
                                 <span
-                                  class="text-[9px] px-1 py-0.2 rounded font-mono uppercase"
-                                  classList={{
-                                    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400":
-                                      thread.gitPolicy === "automatic",
-                                    "bg-amber-500/10 text-amber-600 dark:text-amber-400":
-                                      thread.gitPolicy === "review",
-                                  }}
+                                  class={`text-[9px] px-1 py-0.2 rounded font-mono uppercase ${
+                                    thread.gitPolicy === "automatic"
+                                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                      : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                  }`}
                                   title={`Git Policy: ${thread.gitPolicy}`}
                                 >
                                   {thread.gitPolicy === "automatic" ? "⚡ auto" : "🔍 review"}

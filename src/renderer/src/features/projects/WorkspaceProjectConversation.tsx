@@ -185,37 +185,34 @@ export function WorkspaceProjectConversation(props: WorkspaceProjectConversation
             <For each={threadMessages()}>
               {(msg) => (
                 <div
-                  class="flex gap-3 max-w-3xl"
-                  classList={{
-                    "ml-auto flex-row-reverse": msg.isUser,
-                  }}
+                  class={`flex gap-3 max-w-3xl ${msg.isUser ? "ml-auto flex-row-reverse" : ""}`}
                 >
                   <div
-                    class="size-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 select-none shadow-xs"
-                    classList={{
-                      "bg-primary text-primary-foreground": msg.isUser,
-                      "bg-muted border border-border text-foreground": !msg.isUser,
-                    }}
+                    class={`size-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 select-none shadow-xs ${
+                      msg.isUser
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted border border-border text-foreground"
+                    }`}
                   >
                     {msg.avatarLetter}
                   </div>
 
                   <div
-                    class="flex flex-col gap-1 rounded-2xl p-3.5 text-xs shadow-xs"
-                    classList={{
-                      "bg-primary text-primary-foreground rounded-tr-xs": msg.isUser,
-                      "bg-card border border-border/60 text-foreground rounded-tl-xs": !msg.isUser,
-                    }}
+                    class={`flex flex-col gap-1 rounded-2xl p-3.5 text-xs shadow-xs ${
+                      msg.isUser
+                        ? "bg-primary text-primary-foreground rounded-tr-xs"
+                        : "bg-card border border-border/60 text-foreground rounded-tl-xs"
+                    }`}
                   >
                     <div class="flex items-center gap-2 select-none">
                       <span class="font-semibold leading-none">{msg.senderName}</span>
                       <Show when={msg.senderRole}>
                         <span
-                          class="text-[9px] px-1 py-0.2 rounded font-medium opacity-80"
-                          classList={{
-                            "bg-primary-foreground/20": msg.isUser,
-                            "bg-muted text-muted-foreground": !msg.isUser,
-                          }}
+                          class={`text-[9px] px-1 py-0.2 rounded font-medium opacity-80 ${
+                            msg.isUser
+                              ? "bg-primary-foreground/20"
+                              : "bg-muted text-muted-foreground"
+                          }`}
                         >
                           {msg.senderRole}
                         </span>

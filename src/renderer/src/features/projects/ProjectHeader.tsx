@@ -138,13 +138,11 @@ export function ProjectHeader() {
           <div class="flex items-center gap-1.5 bg-muted/40 rounded-lg p-0.5 border border-border/40 text-xs">
             <button
               type="button"
-              class="flex items-center gap-1 px-2 py-1 rounded-md transition-colors"
-              classList={{
-                "bg-background font-medium text-foreground shadow-xs":
-                  projects.gitPolicy() === "automatic",
-                "text-muted-foreground hover:text-foreground":
-                  projects.gitPolicy() !== "automatic",
-              }}
+              class={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
+                projects.gitPolicy() === "automatic"
+                  ? "bg-background font-medium text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
               onClick={() => void projects.updateGitPolicy("automatic")}
               title="Automatic Mode: Auto-commits changes on agent completion"
             >
@@ -153,13 +151,11 @@ export function ProjectHeader() {
             </button>
             <button
               type="button"
-              class="flex items-center gap-1 px-2 py-1 rounded-md transition-colors"
-              classList={{
-                "bg-background font-medium text-foreground shadow-xs":
-                  projects.gitPolicy() === "review",
-                "text-muted-foreground hover:text-foreground":
-                  projects.gitPolicy() !== "review",
-              }}
+              class={`flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
+                projects.gitPolicy() === "review"
+                  ? "bg-background font-medium text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
               onClick={() => void projects.updateGitPolicy("review")}
               title="Review Mode: Stage changes & prompt for user review before commit"
             >
@@ -181,10 +177,11 @@ export function ProjectHeader() {
           {/* Team Drawer Toggle Button */}
           <button
             type="button"
-            class="flex items-center gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-accent transition-colors"
-            classList={{
-              "border-primary text-primary bg-primary/10": projects.teamDrawerOpen(),
-            }}
+            class={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+              projects.teamDrawerOpen()
+                ? "border-primary text-primary bg-primary/10"
+                : "border-border/50 bg-background text-foreground hover:bg-accent"
+            }`}
             onClick={() => projects.setTeamDrawerOpen(!projects.teamDrawerOpen())}
             title="Manage Thread Team Members"
           >
@@ -205,21 +202,21 @@ export function ProjectHeader() {
             return (
               <button
                 type="button"
-                class="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors shrink-0"
-                classList={{
-                  "bg-primary text-primary-foreground font-medium shadow-xs": isActive(),
-                  "hover:bg-accent text-muted-foreground hover:text-foreground": !isActive(),
-                }}
+                class={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs transition-colors shrink-0 ${
+                  isActive()
+                    ? "bg-primary text-primary-foreground font-medium shadow-xs"
+                    : "hover:bg-accent text-muted-foreground hover:text-foreground"
+                }`}
                 onClick={() => void projects.selectThread(th.id)}
               >
                 <GitBranch class="size-3 opacity-80" />
                 <span>#{th.name}</span>
                 <span
-                  class="text-[9px] px-1 py-0.2 rounded font-mono uppercase"
-                  classList={{
-                    "bg-white/20 text-primary-foreground": isActive(),
-                    "bg-muted text-muted-foreground": !isActive(),
-                  }}
+                  class={`text-[9px] px-1 py-0.2 rounded font-mono uppercase ${
+                    isActive()
+                      ? "bg-white/20 text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
                 >
                   {th.gitPolicy === "automatic" ? "⚡ auto" : "🔍 review"}
                 </span>

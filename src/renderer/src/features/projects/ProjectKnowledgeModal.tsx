@@ -158,11 +158,11 @@ export function ProjectKnowledgeModal() {
               <div class="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-colors"
-                  classList={{
-                    "border-primary bg-primary/10 text-primary font-medium": scope() === "project",
-                    "border-border bg-card text-muted-foreground hover:border-border/80": scope() !== "project",
-                  }}
+                  class={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-colors ${
+                    scope() === "project"
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border bg-card text-muted-foreground hover:border-border/80"
+                  }`}
                   onClick={() => setScope("project")}
                 >
                   <Globe class="size-4 mb-1" />
@@ -172,11 +172,11 @@ export function ProjectKnowledgeModal() {
 
                 <button
                   type="button"
-                  class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-colors"
-                  classList={{
-                    "border-primary bg-primary/10 text-primary font-medium": scope() === "thread",
-                    "border-border bg-card text-muted-foreground hover:border-border/80": scope() !== "thread",
-                  }}
+                  class={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-colors ${
+                    scope() === "thread"
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border bg-card text-muted-foreground hover:border-border/80"
+                  }`}
                   onClick={() => setScope("thread")}
                 >
                   <FileCode class="size-4 mb-1" />
@@ -186,11 +186,11 @@ export function ProjectKnowledgeModal() {
 
                 <button
                   type="button"
-                  class="flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-colors"
-                  classList={{
-                    "border-primary bg-primary/10 text-primary font-medium": scope() === "agent",
-                    "border-border bg-card text-muted-foreground hover:border-border/80": scope() !== "agent",
-                  }}
+                  class={`flex flex-col items-center justify-center p-2.5 rounded-lg border text-center transition-colors ${
+                    scope() === "agent"
+                      ? "border-primary bg-primary/10 text-primary font-medium"
+                      : "border-border bg-card text-muted-foreground hover:border-border/80"
+                  }`}
                   onClick={() => setScope("agent")}
                 >
                   <BookOpen class="size-4 mb-1" />
