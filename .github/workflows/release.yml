@@ -124,6 +124,6 @@ jobs:
           $tag = "${{ steps.versioning.outputs.tag }}"
           $title = "OpenBot $tag"
           $files = Get-ChildItem dist/*.exe, dist/latest.yml, dist/SHA256SUMS-windows-x64.txt -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
-          gh release create $tag $files --title $title --generate-notes
+          gh release create $tag $files --title $title --generate-notes --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
