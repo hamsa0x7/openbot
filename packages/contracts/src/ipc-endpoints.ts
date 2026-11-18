@@ -471,6 +471,19 @@ import type {
   WhatsAppOverview,
   WhatsAppSenderInput,
 } from "./ipc-messaging";
+import type {
+  AddKnowledgeSourceInput,
+  CreateProjectInput,
+  CreateProjectThreadInput,
+  GitTelemetry,
+  ProjectDetails,
+  ProjectKnowledgeSource,
+  ProjectSummary,
+  ProjectThreadMember,
+  ProjectThreadSummary,
+  SetThreadMemberStatusInput,
+  UpdateThreadGitPolicyInput,
+} from "./ipc-projects";
 import type { ProviderModelVisibility, ProviderModelVisibilityChange } from "./ipc-model-visibility";
 import type {
   NotificationOpenedEvent,
@@ -2489,6 +2502,23 @@ export const IPC_ENDPOINTS = {
     disconnect: request<string, void>()("remote-desktop:disconnect"),
     event: event<RemoteDesktopSession[]>()("remote-desktop:event"),
   },
+
+  project: {
+    list: request<undefined, ProjectSummary[]>()("project:list"),
+    get: request<string, ProjectDetails | null>()("project:get"),
+    create: request<CreateProjectInput, ProjectSummary>()("project:create"),
+    delete: request<string, void>()("project:delete"),
+    listThreads: request<string, ProjectThreadSummary[]>()("project:list-threads"),
+    createThread: request<CreateProjectThreadInput, ProjectThreadSummary>()("project:create-thread"),
+    deleteThread: request<string, void>()("project:delete-thread"),
+    updateGitPolicy: request<UpdateThreadGitPolicyInput, void>()("project:update-git-policy"),
+    listMembers: request<string, ProjectThreadMember[]>()("project:list-members"),
+    setMemberStatus: request<SetThreadMemberStatusInput, void>()("project:set-member-status"),
+    getGitTelemetry: request<string, GitTelemetry>()("project:get-git-telemetry"),
+    listKnowledge: request<{ projectId: string; threadId?: string }, ProjectKnowledgeSource[]>()("project:list-knowledge"),
+    addKnowledge: request<AddKnowledgeSourceInput, ProjectKnowledgeSource>()("project:add-knowledge"),
+    deleteKnowledge: request<string, void>()("project:delete-knowledge"),
+  },
 } as const;
 
 export type IpcEndpoints = typeof IPC_ENDPOINTS;
@@ -2565,6 +2595,7 @@ export const IPC_GROUP_PATHS = {
   host: "host",
   events: "events",
   remoteDesktop: "remoteDesktop",
+  project: "project",
 } as const satisfies { readonly [Group in keyof IpcEndpoints]: string | null };
 
 export type IpcGroupName = keyof IpcEndpoints;

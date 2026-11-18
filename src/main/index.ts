@@ -108,6 +108,7 @@ import { notificationIpcHandlers } from "./ipc/notification-handlers";
 import { onePasswordConnectorIpcHandlers } from "./ipc/onepassword-connector-handlers";
 import { passwordManagersIpcHandlers } from "./ipc/password-managers-handlers";
 import { pluginIpcHandlers } from "./ipc/plugin-handlers";
+import { projectIpcHandlers } from "./ipc/project-handlers";
 import { providerAdminIpcHandlers } from "./ipc/provider-admin-handlers";
 import { providerDetectionIpcHandlers } from "./ipc/provider-detection-handlers";
 import { providerIpcHandlers } from "./ipc/provider-handlers";
@@ -856,6 +857,8 @@ function attachWindowsSessionEndHandlers(window: BrowserWindow): void {
 
 function registerIpcHandlers({
   service,
+  projects,
+  git,
   signInRelayClient,
   relayedMessagingInstalls,
   providerRuntimes,
@@ -1070,6 +1073,7 @@ function registerIpcHandlers({
     ...licenseIpcHandlers({ license }),
     ...routineFeedIpcHandlers({ routineFeed }),
     ...eventsIpcHandlers({ events, remoteServers }),
+    ...projectIpcHandlers({ projects, git }),
     ...hostedServerIpcHandlers({ hostedServers }),
     ...localServerIpcHandlers({ localServers }),
     ...customProviderIpcHandlers(customProviderChanges),

@@ -47,6 +47,7 @@ import { V60_AGENT_MEMORY_SITE_COLUMN_SQL, V60_AGENT_MEMORY_SITE_INDEX_SQL } fro
 import { PINNED_THREAD_MESSAGES_SCHEMA_SQL } from "./migrations/0061-pinned-thread-messages";
 import { MESSAGING_HISTORY_SCHEMA_SQL } from "./migrations/0062-messaging-history";
 import { CRM_SCHEMA_SQL } from "./migrations/0063-crm";
+import { PROJECTS_SCHEMA_SQL } from "./migrations/0064-projects";
 import type { OpenBotMigration } from "./migrations/migration";
 import { MIGRATIONS } from "./migrations/registry";
 
@@ -172,7 +173,8 @@ const LATEST_SCHEMA_SQL =
   V60_AGENT_MEMORY_SITE_INDEX_SQL +
   PINNED_THREAD_MESSAGES_SCHEMA_SQL +
   MESSAGING_HISTORY_SCHEMA_SQL +
-  CRM_SCHEMA_SQL;
+  CRM_SCHEMA_SQL +
+  PROJECTS_SCHEMA_SQL;
 
 /** The end of the thread message table with the migration 40 columns before its PRIMARY KEY constraint. */
 function withThreadMessageOrderColumns(tableEnd: string): string {

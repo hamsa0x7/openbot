@@ -130,6 +130,8 @@ export type StorageDesktopApi = GroupApi<IpcEndpoints["storage"]>;
  */
 export type AgentImportDesktopApi = GroupApi<IpcEndpoints["agentImport"]>;
 
+export type ProjectDesktopApi = GroupApi<IpcEndpoints["project"]>;
+
 // Each member is at its place in `IPC_GROUP_PATHS`, so a new group needs no line here. Only the
 // members with methods that the preload writes by hand are named.
 export interface OpenBotDesktopApi extends Omit<BridgedDesktopApi, "agent" | "browser" | "servers"> {

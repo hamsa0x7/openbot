@@ -38,6 +38,7 @@ import { DevWorktreeLabel } from "./DevWorktreeLabel";
 import { createSidebarAlertCards, SidebarAlertCards } from "./SidebarAlertCards";
 import { ServerUpgradeOffer } from "./server-upgrade-offer";
 import { useSidebar } from "./sidebar-context";
+import { WorkspaceProjectListView } from "../projects/WorkspaceProjectListView";
 
 /** Dismissing the mobile app card is a choice of this computer, like the sidebar width. The key is
  * new with the Android release, so a computer that dismissed the iPhone-only card sees it once more. */
@@ -223,6 +224,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
           ) || channels.hasUnread()
         }
         view={layout.sidebarView()}
+        projectsView={<WorkspaceProjectListView />}
         serverName={activeServer()?.name ?? t("sidebar.topbar.localServer")}
         onOpenServerSettings={(trigger) => {
           const server = activeServer();

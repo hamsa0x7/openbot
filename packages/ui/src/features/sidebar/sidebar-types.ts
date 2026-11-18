@@ -26,7 +26,7 @@ import type { SidebarPinnedItem } from "./sidebar-pins";
  * What the main area shows for the chat picked in the list: its conversation, or its routines. The
  * list itself is the same in both.
  */
-export type SidebarView = "agents" | "routines";
+export type SidebarView = "projects" | "channels" | "agents" | "routines";
 
 /**
  * The "Hidden" group is not a section of the layout, and it is collapsed by default. Its id in
@@ -193,6 +193,8 @@ export interface SidebarProps {
   /** The agents whose chat is open in a window of its own. Their rows show a window mark. */
   windowAgentIds?: ReadonlySet<string> | undefined;
   compact: boolean;
+  /** Custom view rendered when the sidebar view is set to "projects". */
+  projectsView?: JSX.Element | undefined;
   /** A card under the chat list, such as an announcement. The compact sidebar has no room for it. */
   footer?: JSX.Element;
   onExpand: () => void;

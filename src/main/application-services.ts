@@ -339,6 +339,8 @@ import {
   sendComputerUseHighlightPlacement,
   showMainWindow,
 } from "./main-window";
+import { GitService } from "./git-service";
+import { ProjectService } from "./project-service";
 import { DATA_SKILL_SLUG, ManagedSkillService, SKILL_CREATOR_SKILL_SLUG } from "./managed-skill-service";
 import { MCP_ACCESS_FILE, type McpAccessControl, McpAccessStore, sameMcpAgents } from "./mcp-access-store";
 import { McpHostSignIns } from "./mcp-host-sign-ins";
@@ -698,6 +700,8 @@ export interface ApplicationServiceContext {
 /** Everything the entry point wires up, registers IPC handlers against, and shuts down. */
 export interface ApplicationServices {
   service: AgentService;
+  projects: ProjectService;
+  git: GitService;
   routineFlows: RoutineFlowsHandle;
   workflows: WorkflowsHandle;
   /** The repositories, labels and people that the workflow editor offers from the GitHub connection. */
@@ -1379,6 +1383,8 @@ export async function createApplicationServices({
   // Closing copies the write-ahead log into the database file and removes it. A step that passed its
   // limit, such as a slow agent stop, still writes, so the close waits a short time for it.
   teardown.push(TEARDOWN_ORDER.database, "the database", () => store.database.close(), { afterAbandonedSteps: true });
+  const gitService = new GitService();
+  const projectService = new ProjectService(store.database, gitService);
   const managedSkills = new ManagedSkillService(
     app.isPackaged
       ? join(process.resourcesPath, "managed-skills", "openbot-site-hosting", "SKILL.md")
@@ -4774,6 +4780,8 @@ export async function createApplicationServices({
 
   return {
     service,
+    projects: projectService,
+    git: gitService,
     routineFlows: routineFlowRuntime,
     workflows: workflowRuntime,
     workflowGitHub,

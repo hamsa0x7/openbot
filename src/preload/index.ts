@@ -1692,6 +1692,22 @@ const openbotApi: OpenBotDesktopApi = {
     disconnect: decodeVoid,
     event: decodeRemoteDesktopSessions,
   }),
+  project: bridgeGroup(IPC_ENDPOINTS.project, {
+    list: (v: unknown) => v as any,
+    get: (v: unknown) => v as any,
+    create: (v: unknown) => v as any,
+    delete: decodeVoid,
+    listThreads: (v: unknown) => v as any,
+    createThread: (v: unknown) => v as any,
+    deleteThread: decodeVoid,
+    updateGitPolicy: decodeVoid,
+    listMembers: (v: unknown) => v as any,
+    setMemberStatus: decodeVoid,
+    getGitTelemetry: (v: unknown) => v as any,
+    listKnowledge: (v: unknown) => v as any,
+    addKnowledge: (v: unknown) => v as any,
+    deleteKnowledge: decodeVoid,
+  }),
 };
 
 contextBridge.exposeInMainWorld("openbot", openbotApi);

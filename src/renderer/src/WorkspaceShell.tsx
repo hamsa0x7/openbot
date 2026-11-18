@@ -43,6 +43,8 @@ import { WindowBackdrop } from "./features/window/WindowBackdrop";
 import { WindowPageView } from "./features/window/WindowPageView";
 import { WorkspacePageRail } from "./features/window/WorkspacePageRail";
 import { useWindowPage } from "./features/window/window-page-context";
+import { useProjects } from "./features/projects/projects-context";
+import { WorkspaceProjectConversation } from "./features/projects/WorkspaceProjectConversation";
 import { useLayout } from "./layout";
 import { usePlatform } from "./platform";
 import { WorkspaceFrame } from "./WorkspaceFrame";
@@ -108,6 +110,7 @@ export function WorkspaceShell(props: {
   const { conversations, retryConversation } = useConversation();
   const activeConversation = () => conversations[activeAgent()?.id ?? ""];
   const { activeDirectMember } = useDirectMessages();
+  const projects = useProjects();
   /**
    * The pane in the middle. The Tasks page wins, as it covered the panes when it was a page over them.
    * Then the Agent form, then a channel, then a person, then the Agent or its routines.
@@ -116,6 +119,7 @@ export function WorkspaceShell(props: {
     if (chatWindow) return "agent";
     if (windowPage.page() === "tasks") return "tasks";
     if (agentSetupOpen()) return "agent-setup";
+    if (layout.sidebarView() === "projects" || projects.activeProjectId()) return "project";
     if (channelOpen()) return "channel";
     if (activeDirectMember()) return "direct";
     return layout.sidebarView() === "routines" ? "routines" : "agent";
@@ -436,6 +440,9 @@ export function WorkspaceShell(props: {
           </Show>
           <Show when={middlePane() === "channel"}>
             <WorkspaceChannelConversation account={props.account} />
+          </Show>
+          <Show when={middlePane() === "project"}>
+            <WorkspaceProjectConversation account={props.account} />
           </Show>
         </WorkspaceFrame>
         <Show when={loadingCover()}>{connectionNotice(true)}</Show>

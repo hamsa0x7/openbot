@@ -50,31 +50,36 @@ export function SidebarNav() {
       onScroll={scrollFades.measure}
     >
       <div ref={scrollFades.watch} class="agent-list-content">
-        <Show
-          when={
-            resolvedPinnedItems().length === 0 &&
-            waitingChats().length === 0 &&
-            unreadChats().length === 0 &&
-            filteredChats().length === 0 &&
-            userHiddenAgentList().length === 0 &&
-            (props.showPeople === false || orderedPeople().length === 0) &&
-            pending.sectionEditor?.target.kind !== "create"
-          }
-        >
-          <SidebarEmptyState />
+        <Show when={props.view === "projects" && props.projectsView}>
+          {props.projectsView}
         </Show>
-        <SidebarPinnedGroup />
-        <SidebarWaitingGroup />
-        <SidebarUnreadGroup />
-        <SidebarSectionList />
-        <SidebarHiddenGroup />
-        <Show when={props.showingArchivedChannels}>
-          <section class="sidebar-chat-group sidebar-section" aria-label={t("sidebar.deletedChannels.title")}>
-            <h2 class="sidebar-section-name">{t("sidebar.deletedChannels.title")}</h2>
-            <For each={props.deletedChannels} fallback={<p>{t("sidebar.deletedChannels.empty")}</p>}>
-              {(channel) => <SidebarChannelRow channel={channel} />}
-            </For>
-          </section>
+        <Show when={props.view !== "projects"}>
+          <Show
+            when={
+              resolvedPinnedItems().length === 0 &&
+              waitingChats().length === 0 &&
+              unreadChats().length === 0 &&
+              filteredChats().length === 0 &&
+              userHiddenAgentList().length === 0 &&
+              (props.showPeople === false || orderedPeople().length === 0) &&
+              pending.sectionEditor?.target.kind !== "create"
+            }
+          >
+            <SidebarEmptyState />
+          </Show>
+          <SidebarPinnedGroup />
+          <SidebarWaitingGroup />
+          <SidebarUnreadGroup />
+          <SidebarSectionList />
+          <SidebarHiddenGroup />
+          <Show when={props.showingArchivedChannels}>
+            <section class="sidebar-chat-group sidebar-section" aria-label={t("sidebar.deletedChannels.title")}>
+              <h2 class="sidebar-section-name">{t("sidebar.deletedChannels.title")}</h2>
+              <For each={props.deletedChannels} fallback={<p>{t("sidebar.deletedChannels.empty")}</p>}>
+                {(channel) => <SidebarChannelRow channel={channel} />}
+              </For>
+            </section>
+          </Show>
         </Show>
         <span class="sr-only" role="status" aria-live="polite" aria-atomic="true">
           {reorderAnnouncement()}

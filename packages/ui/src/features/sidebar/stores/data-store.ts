@@ -264,7 +264,12 @@ export function createSidebarDataStore(deps: {
    * others, both by their last activity. The saved `agentOrder` does not change.
    */
   const filteredChats = createChatItems(
-    () => ({ channels: filteredChannels(), agents: filteredAgents() }),
+    () => {
+      const view = props.view;
+      if (view === "channels") return { channels: filteredChannels(), agents: [] };
+      if (view === "agents") return { channels: [], agents: filteredAgents() };
+      return { channels: filteredChannels(), agents: filteredAgents() };
+    },
     (items) => {
       if (chatOrder() === "recent") return byRecent(items);
       if (chatOrder() !== "unread-first") return items;

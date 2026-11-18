@@ -15,6 +15,12 @@
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@openbot/logging": ["./packages/logging/src/index.ts"],
+      "@openbot/contracts/*": ["./packages/contracts/src/*"],
+      "@openbot/contracts": ["./packages/contracts/src/index.ts"]
+    }
   }
 }
