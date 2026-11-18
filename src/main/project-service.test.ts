@@ -4,7 +4,7 @@ import { PROJECTS_SCHEMA_SQL } from "../backend/openbot-database-schema";
 import { GitService } from "./git-service";
 import { ProjectService } from "./project-service";
 
-describe("ProjectService & Migration 64", () => {
+describe("ProjectService & Migration 65", () => {
   function setupTestDb() {
     const db = new DatabaseSync(":memory:");
     db.exec(PROJECTS_SCHEMA_SQL);

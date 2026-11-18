@@ -57,7 +57,7 @@ export const PROJECTS_SCHEMA_SQL = `
 `;
 
 export const migration: OpenBotMigration = {
-  version: 64,
+  version: 65,
   name: "projects",
   up: (db) => db.exec(PROJECTS_SCHEMA_SQL),
 };
