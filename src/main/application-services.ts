@@ -4465,6 +4465,7 @@ export async function createApplicationServices({
       existsSync(HOSTED_UPDATE_TRIGGER));
   // A local server is the same application as its parent, which installs the update for both.
   const updatesEnabled =
+    process.env.OPENBOT_DISABLE_UPDATES !== "1" &&
     !localServerChild &&
     app.isPackaged &&
     !isNixStoreInstall() &&
