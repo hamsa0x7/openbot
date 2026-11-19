@@ -240,6 +240,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
           ) || channels.hasUnread()
         }
         view={layout.sidebarView()}
+        onViewChange={layout.setSidebarView}
         projectsView={<WorkspaceProjectListView />}
         serverName={activeServer()?.name ?? t("sidebar.topbar.localServer")}
         onOpenServerSettings={(trigger) => {

@@ -22,18 +22,18 @@ export function SidebarViewSwitch() {
           if (isSidebarView(value)) props.onViewChange?.(value);
         }}
       >
-        <SlidingTabs.List class="sidebar-view-tabs" aria-label={t("sidebar.view.label")}>
+        <SlidingTabs.List class="sidebar-view-tabs" aria-label="Sidebar view">
           <SlidingTabs.Trigger value="projects" class="sidebar-view-tab">
             <Folder aria-hidden="true" />
-            {t("sidebar.view.projects")}
+            Projects
           </SlidingTabs.Trigger>
           <SlidingTabs.Trigger value="channels" class="sidebar-view-tab">
             <Hash aria-hidden="true" />
-            {t("sidebar.view.channels")}
+            Channels
           </SlidingTabs.Trigger>
           <SlidingTabs.Trigger value="agents" class="sidebar-view-tab">
             <Bot aria-hidden="true" />
-            {t("sidebar.view.agents")}
+            Agents
           </SlidingTabs.Trigger>
         </SlidingTabs.List>
       </SlidingTabs.Root>
