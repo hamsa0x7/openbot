@@ -14,9 +14,9 @@ import type {
 } from "@openbot/contracts/ipc";
 import {
   createContext,
-  createEffect,
   createMemo,
   createSignal,
+  onSettled,
   type ParentProps,
   useContext,
 } from "solid-js";
@@ -285,7 +285,7 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   // Initial load
-  createEffect(() => {
+  onSettled(() => {
     void reloadProjects();
   });
 
