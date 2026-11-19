@@ -32,11 +32,21 @@ startRendererTiming();
 // `App` must stay a static import. Main sends the first runtime snapshot on `did-finish-load`,
 // which does not wait for a dynamic import, and `App` would subscribe after it. The helper windows
 // load `helper.html` instead.
-render(
-  () => (
-    <WindowBackdropBubbles>
-      <App chatWindow={readChatWindowTarget(window.location.search)} />
-    </WindowBackdropBubbles>
-  ),
-  root,
-);
+try {
+  render(
+    () => (
+      <WindowBackdropBubbles>
+        <App chatWindow={readChatWindowTarget(window.location.search)} />
+      </WindowBackdropBubbles>
+    ),
+    root,
+  );
+} catch (error) {
+  console.error("[CRITICAL RENDER MOUNT ERROR]", error);
+  const detail = error instanceof Error ? `${error.message}\n${error.stack || ""}` : String(error);
+  const box = document.createElement("div");
+  box.style.cssText =
+    "position:fixed;top:32px;left:16px;right:16px;bottom:16px;background:#18181b;color:#f87171;border:2px solid #ef4444;border-radius:8px;padding:20px;font-family:monospace;font-size:12px;z-index:999999999;overflow:auto;white-space:pre-wrap;";
+  box.innerText = `CRITICAL RENDER MOUNT ERROR:\n\n${detail}`;
+  root.appendChild(box);
+}

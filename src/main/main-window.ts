@@ -321,10 +321,23 @@ export function createMainWindowController({
     followWindowGlass(window, MAIN_WINDOW_DARK_BACKGROUND);
 
     window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-      if (level >= 2) {
-        logger.warn(`[Renderer console error] ${message} (${sourceId}:${line})`);
+      logger.warn(`[Renderer console L${level}] ${message} (${sourceId}:${line})`);
+    });
+
+    window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+      logger.warn(`[Renderer did-fail-load] code=${errorCode} desc=${errorDescription} url=${validatedURL}`);
+    });
+
+    window.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12" || (input.control && input.shift && input.key.toLowerCase() === "i")) {
+        window.webContents.toggleDevTools();
+        event.preventDefault();
       }
     });
+
+    if (process.env.OPENBOT_DEBUG === "true" || process.env.OPENBOT_DEVTOOLS === "true") {
+      window.webContents.openDevTools({ mode: "detach" });
+    }
 
     window.once("ready-to-show", () => {
       performance.mark("openbot:window-ready");
@@ -484,10 +497,23 @@ export function createMainWindowController({
     followWindowGlass(window, MAIN_WINDOW_DARK_BACKGROUND);
 
     window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-      if (level >= 2) {
-        logger.warn(`[Renderer console error] ${message} (${sourceId}:${line})`);
+      logger.warn(`[Renderer console L${level}] ${message} (${sourceId}:${line})`);
+    });
+
+    window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+      logger.warn(`[Renderer did-fail-load] code=${errorCode} desc=${errorDescription} url=${validatedURL}`);
+    });
+
+    window.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12" || (input.control && input.shift && input.key.toLowerCase() === "i")) {
+        window.webContents.toggleDevTools();
+        event.preventDefault();
       }
     });
+
+    if (process.env.OPENBOT_DEBUG === "true" || process.env.OPENBOT_DEVTOOLS === "true") {
+      window.webContents.openDevTools({ mode: "detach" });
+    }
     chatWindows.set(key, { target: { serverId: target.serverId, agentId: target.agentId }, window });
     window.once("ready-to-show", () => window.show());
     window.on("closed", () => {

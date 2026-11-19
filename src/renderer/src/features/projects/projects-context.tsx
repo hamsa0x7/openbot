@@ -56,14 +56,45 @@ export interface ProjectsController {
   refreshTelemetry: () => Promise<void>;
 }
 
-const ProjectsContext = createContext<ProjectsController>(undefined, { name: "Projects" });
+const FALLBACK_PROJECTS_CONTROLLER: ProjectsController = {
+  projects: () => [],
+  activeProjectId: () => null,
+  activeProject: () => null,
+  threads: () => [],
+  activeThreadId: () => null,
+  activeThread: () => null,
+  threadMembers: () => [],
+  gitTelemetry: () => null,
+  gitPolicy: () => "review",
+  knowledgeSources: () => [],
+  teamDrawerOpen: () => false,
+  setTeamDrawerOpen: () => {},
+  knowledgeModalOpen: () => false,
+  setKnowledgeModalOpen: () => {},
+  createProjectDialogOpen: () => false,
+  setCreateProjectDialogOpen: () => {},
+  createThreadDialogOpen: () => false,
+  setCreateThreadDialogOpen: () => {},
+  readdModalMember: () => null,
+  setReaddModalMember: () => {},
+  reloadProjects: async () => {},
+  selectProject: async () => {},
+  selectThread: async () => {},
+  updateGitPolicy: async () => {},
+  createProject: async () => { throw new Error("ProjectsProvider unavailable"); },
+  deleteProject: async () => {},
+  createThread: async () => { throw new Error("ProjectsProvider unavailable"); },
+  deleteThread: async () => {},
+  setMemberStatus: async () => {},
+  addKnowledge: async () => { throw new Error("ProjectsProvider unavailable"); },
+  deleteKnowledge: async () => {},
+  refreshTelemetry: async () => {},
+};
+
+const ProjectsContext = createContext<ProjectsController>(FALLBACK_PROJECTS_CONTROLLER, { name: "Projects" });
 
 export function useProjects(): ProjectsController {
-  const context = useContext(ProjectsContext);
-  if (!context) {
-    throw new Error("useProjects must be used within a ProjectsProvider");
-  }
-  return context;
+  return useContext(ProjectsContext) ?? FALLBACK_PROJECTS_CONTROLLER;
 }
 
 export function ProjectsProvider(props: ParentProps) {
@@ -96,6 +127,7 @@ export function ProjectsProvider(props: ParentProps) {
 
   const reloadProjects = async () => {
     try {
+      if (!window?.openbot?.project?.list) return;
       const list = await window.openbot.project.list();
       setProjects(list || []);
     } catch (e) {
@@ -105,7 +137,7 @@ export function ProjectsProvider(props: ParentProps) {
 
   const refreshTelemetry = async () => {
     const proj = activeProject();
-    if (!proj) return;
+    if (!proj || !window?.openbot?.project?.getGitTelemetry) return;
     try {
       const tele = await window.openbot.project.getGitTelemetry(proj.workspacePath);
       setGitTelemetry(tele);
@@ -115,11 +147,12 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const loadThreadDetails = async (threadId: string) => {
+    if (!window?.openbot?.project?.listMembers) return;
     try {
       const members = await window.openbot.project.listMembers(threadId);
       setThreadMembers(members || []);
       const projId = activeProjectId();
-      if (projId) {
+      if (projId && window?.openbot?.project?.listKnowledge) {
         const knowledge = await window.openbot.project.listKnowledge({
           projectId: projId,
           threadId,
@@ -134,6 +167,7 @@ export function ProjectsProvider(props: ParentProps) {
   const selectProject = async (projectId: string) => {
     setActiveProjectId(projectId);
     try {
+      if (!window?.openbot?.project?.listThreads) return;
       const threadList = await window.openbot.project.listThreads(projectId);
       setThreads(threadList || []);
       if (threadList && threadList.length > 0) {
@@ -156,7 +190,7 @@ export function ProjectsProvider(props: ParentProps) {
 
   const updateGitPolicy = async (policy: ProjectGitPolicy) => {
     const threadId = activeThreadId();
-    if (!threadId) return;
+    if (!threadId || !window?.openbot?.project?.updateGitPolicy) return;
     await window.openbot.project.updateGitPolicy({ threadId, gitPolicy: policy });
     // Update local state
     setThreads((prev) =>
@@ -165,6 +199,7 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const createProject = async (input: CreateProjectInput): Promise<ProjectSummary> => {
+    if (!window?.openbot?.project?.create) throw new Error("Project API not available");
     const project = await window.openbot.project.create(input);
     await reloadProjects();
     await selectProject(project.id);
@@ -172,6 +207,7 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const deleteProject = async (projectId: string) => {
+    if (!window?.openbot?.project?.delete) return;
     await window.openbot.project.delete(projectId);
     if (activeProjectId() === projectId) {
       setActiveProjectId(null);
@@ -183,6 +219,9 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const createThread = async (input: CreateProjectThreadInput): Promise<ProjectThreadSummary> => {
+    if (!window?.openbot?.project?.createThread || !window?.openbot?.project?.listThreads) {
+      throw new Error("Project API not available");
+    }
     const thread = await window.openbot.project.createThread(input);
     const threadList = await window.openbot.project.listThreads(input.projectId);
     setThreads(threadList || []);
@@ -191,9 +230,10 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const deleteThread = async (threadId: string) => {
+    if (!window?.openbot?.project?.deleteThread) return;
     await window.openbot.project.deleteThread(threadId);
     const projId = activeProjectId();
-    if (projId) {
+    if (projId && window?.openbot?.project?.listThreads) {
       const threadList = await window.openbot.project.listThreads(projId);
       setThreads(threadList || []);
       if (activeThreadId() === threadId) {
@@ -208,6 +248,7 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const setMemberStatus = async (input: SetThreadMemberStatusInput) => {
+    if (!window?.openbot?.project?.setMemberStatus) return;
     await window.openbot.project.setMemberStatus(input);
     if (activeThreadId() === input.threadId) {
       await loadThreadDetails(input.threadId);
@@ -215,10 +256,11 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const addKnowledge = async (input: AddKnowledgeSourceInput): Promise<ProjectKnowledgeSource> => {
+    if (!window?.openbot?.project?.addKnowledge) throw new Error("Project API not available");
     const source = await window.openbot.project.addKnowledge(input);
     const projId = activeProjectId();
     const threadId = activeThreadId();
-    if (projId) {
+    if (projId && window?.openbot?.project?.listKnowledge) {
       const knowledge = await window.openbot.project.listKnowledge({
         projectId: projId,
         threadId: threadId ?? undefined,
@@ -229,10 +271,11 @@ export function ProjectsProvider(props: ParentProps) {
   };
 
   const deleteKnowledge = async (sourceId: string) => {
+    if (!window?.openbot?.project?.deleteKnowledge) return;
     await window.openbot.project.deleteKnowledge(sourceId);
     const projId = activeProjectId();
     const threadId = activeThreadId();
-    if (projId) {
+    if (projId && window?.openbot?.project?.listKnowledge) {
       const knowledge = await window.openbot.project.listKnowledge({
         projectId: projId,
         threadId: threadId ?? undefined,
