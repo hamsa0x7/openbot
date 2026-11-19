@@ -22,7 +22,7 @@ function newestReleaseTag(): string {
   } catch {
     tags = git("tag", "--list", "--sort=-v:refname", "v*");
   }
-  const newest = /(?:^|\/)(v\d+\.\d+\.\d+)$/m.exec(tags)?.[1];
+  const newest = /(?:^|\/)(v\d+\.\d+\.\d+(?:-[a-z0-9.]+)?)$/im.exec(tags)?.[1];
   if (!newest) throw new Error("No v* release tag on origin or in this checkout.");
   return newest;
 }

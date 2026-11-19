@@ -11,14 +11,15 @@ on:
         description: "Automatic version increment"
         type: choice
         options:
+          - mod
           - patch
           - minor
           - major
           - custom
           - none
-        default: patch
+        default: mod
       custom_version:
-        description: "Custom version (only if bump is 'custom', e.g. 0.72.1)"
+        description: "Custom version (only if bump is 'custom', e.g. 0.73.2-m1)"
         required: false
         default: ""
 
@@ -59,21 +60,35 @@ jobs:
             $bump = "${{ inputs.bump }}"
             $custom = "${{ inputs.custom_version }}".Trim().TrimStart("v")
             
-            if ($bump -eq "custom" -and $custom) {
-              $newVer = $custom
-            } elseif ($bump -eq "patch") {
-              $parts = $current.Split('.')
-              $newVer = "$($parts[0]).$($parts[1]).$([int]$parts[2] + 1)"
-            } elseif ($bump -eq "minor") {
-              $parts = $current.Split('.')
-              $newVer = "$($parts[0]).$([int]$parts[1] + 1).0"
-            } elseif ($bump -eq "major") {
-              $parts = $current.Split('.')
-              $newVer = "$([int]$parts[0] + 1).0.0"
-            } else {
-              $newVer = $current
-            }
-            $tag = "v$newVer"
+          $semverRegex = '^(\d+)\.(\d+)\.(\d+)(?:-m(\d+))?$'
+          if ($current -match $semverRegex) {
+            $major = [int]$matches[1]
+            $minor = [int]$matches[2]
+            $patch = [int]$matches[3]
+            $mod = if ($matches[4]) { [int]$matches[4] } else { 0 }
+          } else {
+            $parts = $current.Split('-')[0].Split('.')
+            $major = [int]$parts[0]
+            $minor = [int]$parts[1]
+            $patch = [int]$parts[2]
+            $mod = 0
+          }
+          
+          if ($bump -eq "custom" -and $custom) {
+            $newVer = $custom
+          } elseif ($bump -eq "mod") {
+            $newMod = if ($mod -gt 0) { $mod + 1 } else { 1 }
+            $newVer = "$major.$minor.$patch-m$newMod"
+          } elseif ($bump -eq "patch") {
+            $newVer = "$major.$minor.$($patch + 1)-m1"
+          } elseif ($bump -eq "minor") {
+            $newVer = "$major.$($minor + 1).0-m1"
+          } elseif ($bump -eq "major") {
+            $newVer = "$($major + 1).0.0-m1"
+          } else {
+            $newVer = $current
+          }
+          $tag = "v$newVer"
           }
 
           Write-Output "Target release version: $newVer (tag: $tag)"

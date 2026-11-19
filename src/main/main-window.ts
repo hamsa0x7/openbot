@@ -1,4 +1,7 @@
 import { Effect } from "effect";
+import { createOpenBotLogger } from "@openbot/logging";
+
+const logger = createOpenBotLogger("main-window");
 /**
  * Every `BrowserWindow` the desktop app opens, the renderer URLs they load, and the application
  * menu. It is the one surface that legitimately keeps a mutable window handle: macOS destroys the
@@ -317,6 +320,12 @@ export function createMainWindowController({
     hideMenuBar(window);
     followWindowGlass(window, MAIN_WINDOW_DARK_BACKGROUND);
 
+    window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+      if (level >= 2) {
+        logger.warn(`[Renderer console error] ${message} (${sourceId}:${line})`);
+      }
+    });
+
     window.once("ready-to-show", () => {
       performance.mark("openbot:window-ready");
       if (
@@ -473,6 +482,12 @@ export function createMainWindowController({
     });
     hideMenuBar(window);
     followWindowGlass(window, MAIN_WINDOW_DARK_BACKGROUND);
+
+    window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+      if (level >= 2) {
+        logger.warn(`[Renderer console error] ${message} (${sourceId}:${line})`);
+      }
+    });
     chatWindows.set(key, { target: { serverId: target.serverId, agentId: target.agentId }, window });
     window.once("ready-to-show", () => window.show());
     window.on("closed", () => {
