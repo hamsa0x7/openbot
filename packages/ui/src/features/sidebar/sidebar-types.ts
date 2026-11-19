@@ -27,7 +27,7 @@ import type { SidebarPinnedItem } from "./sidebar-pins";
  * What the main area shows for the chat picked in the list: its conversation, or its routines. The
  * list itself is the same in both.
  */
-export type SidebarView = "projects" | "channels" | "agents" | "routines";
+export type SidebarView = "agents" | "routines" | "projects";
 
 /**
  * The "Hidden" group is not a section of the layout, and it is collapsed by default. Its id in

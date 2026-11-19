@@ -132,7 +132,7 @@ const Layout = createSimpleContext({
       window.localStorage.getItem(SERVER_VIEW_STORAGE_KEY) === "rail" ? "rail" : "menu",
     );
     const [sidebarView, setSidebarViewSignal] = createSignal<SidebarView>(
-      (window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY) as SidebarView) || "projects",
+      (window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY) as SidebarView) || "agents",
     );
     const [sidebarChatOrder, setSidebarChatOrderSignal] = createSignal<SidebarChatOrder>(readSidebarChatOrder());
     const [railPinChoices, setRailPinChoices] = createSignal<RailPinChoices>(readRailPinChoices());

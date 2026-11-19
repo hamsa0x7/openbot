@@ -1,25 +1,37 @@
 import type { ProjectMemberMemoryMode, ProjectThreadMember } from "@openbot/contracts/ipc";
 import {
-  AlertTriangle,
   Bot,
+  Button,
   Check,
   Crown,
   History,
+  IconButton,
   Plus,
   RotateCcw,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Sparkles,
   UserMinus,
   UserPlus,
   X,
   Zap,
 } from "@openbot/ui";
+import { toast } from "solid-sonner";
 import { createMemo, createSignal, For, Show } from "solid-js";
 import { useAgents } from "../agents/agents-context";
 import { useProjects } from "./projects-context";
 
+interface AgentOption {
+  id: string;
+  name: string;
+}
+
 export function ProjectTeamDrawer() {
   const projects = useProjects();
-  const { agentList, modelOptions, openAgentSetup } = useAgents();
+  const { agentList, openAgentSetup } = useAgents();
 
   const activeThread = () => projects.activeThread();
   const members = () => projects.threadMembers();
@@ -37,38 +49,50 @@ export function ProjectTeamDrawer() {
     return agentList().filter((a) => !currentAgentIds.has(a.id));
   });
 
-  // State for Add Agent form
+  const availableAgentOptions = createMemo<AgentOption[]>(() => [
+    { id: "", name: "Choose an agent..." },
+    ...availableAgentsToAdd().map((a) => ({ id: a.id, name: `${a.name} (${a.provider})` })),
+  ]);
+
   const [selectedAgentId, setSelectedAgentId] = createSignal("");
-  const [selectedProvider, setSelectedProvider] = createSignal("");
-  const [selectedModel, setSelectedModel] = createSignal("");
-  const [asLead, setAsLead] = createSignal(false);
+
+  const selectedAgentOption = createMemo(() => {
+    const id = selectedAgentId();
+    return availableAgentOptions().find((opt) => opt.id === id) ?? availableAgentOptions()[0];
+  });
 
   const handleAddAgent = async () => {
     const threadId = projects.activeThreadId();
     const agentId = selectedAgentId();
     if (!threadId || !agentId) return;
 
-    await projects.setMemberStatus({
-      threadId,
-      agentId,
-      status: "active",
-      memoryMode: "fresh",
-    });
-
-    setSelectedAgentId("");
-    setSelectedProvider("");
-    setSelectedModel("");
-    setAsLead(false);
+    try {
+      await projects.setMemberStatus({
+        threadId,
+        agentId,
+        status: "active",
+        memoryMode: "fresh",
+      });
+      toast.success("Agent added to workstream");
+      setSelectedAgentId("");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to add agent");
+    }
   };
 
   const handleRemoveMember = async (agentId: string) => {
     const threadId = projects.activeThreadId();
     if (!threadId) return;
-    await projects.setMemberStatus({
-      threadId,
-      agentId,
-      status: "inactive",
-    });
+    try {
+      await projects.setMemberStatus({
+        threadId,
+        agentId,
+        status: "inactive",
+      });
+      toast.success("Agent removed from workstream");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to remove agent");
+    }
   };
 
   const handleReaddConfirm = async (memoryMode: ProjectMemberMemoryMode) => {
@@ -76,34 +100,23 @@ export function ProjectTeamDrawer() {
     const threadId = projects.activeThreadId();
     if (!target || !threadId) return;
 
-    await projects.setMemberStatus({
-      threadId,
-      agentId: target.agentId,
-      status: "active",
-      memoryMode,
-    });
-
-    projects.setReaddModalMember(null);
-  };
-
-  // Model recommendation badges
-  const getRecommendationBadge = (modelName: string) => {
-    const m = modelName.toLowerCase();
-    if (m.includes("claude-3-7") || m.includes("opus") || m.includes("reasoning")) {
-      return { label: "Deep Reasoning", color: "text-purple-500 bg-purple-500/10" };
+    try {
+      await projects.setMemberStatus({
+        threadId,
+        agentId: target.agentId,
+        status: "active",
+        memoryMode,
+      });
+      toast.success("Agent re-added to workstream");
+      projects.setReaddModalMember(null);
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to re-add agent");
     }
-    if (m.includes("sonnet") || m.includes("gpt-4o") || m.includes("coder") || m.includes("glm")) {
-      return { label: "Top Coder", color: "text-emerald-500 bg-emerald-500/10" };
-    }
-    if (m.includes("flash") || m.includes("haiku") || m.includes("mini")) {
-      return { label: "Fast & Light", color: "text-blue-500 bg-blue-500/10" };
-    }
-    return null;
   };
 
   return (
     <Show when={projects.teamDrawerOpen()}>
-      <div class="fixed inset-y-0 right-0 z-40 w-96 max-w-full bg-background border-l border-border shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 select-none">
+      <div class="fixed top-[42px] bottom-0 right-0 z-40 w-96 max-w-full bg-card border-l border-border shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 select-none">
         {/* Drawer Header */}
         <div class="flex items-center justify-between px-4 py-3 border-b border-border/60">
           <div class="flex items-center gap-2">
@@ -117,24 +130,18 @@ export function ProjectTeamDrawer() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            class="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            onClick={() => projects.setTeamDrawerOpen(false)}
-          >
+          <IconButton label="Close" variant="ghost" onClick={() => projects.setTeamDrawerOpen(false)}>
             <X class="size-4" />
-          </button>
+          </IconButton>
         </div>
 
         {/* Drawer Content */}
         <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
           {/* Active Members Section */}
           <div class="flex flex-col gap-2">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Active Members ({activeMembers().length})
-              </span>
-            </div>
+            <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Active Members ({activeMembers().length})
+            </span>
 
             <Show
               when={activeMembers().length > 0}
@@ -148,10 +155,8 @@ export function ProjectTeamDrawer() {
                 <For each={activeMembers()}>
                   {(member) => {
                     const agent = () => agentList().find((a) => a.id === member.agentId);
-                    const badge = () =>
-                      getRecommendationBadge(member.modelOverride || agent()?.model || "");
                     return (
-                      <div class="flex items-center justify-between p-2.5 rounded-lg border border-border/50 bg-card hover:border-border transition-colors">
+                      <div class="flex items-center justify-between p-2.5 rounded-lg border border-border/50 bg-background hover:border-border transition-colors">
                         <div class="flex items-center gap-2.5 min-w-0">
                           <div class="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0 relative">
                             {agent()?.name.charAt(0) ?? "A"}
@@ -165,34 +170,27 @@ export function ProjectTeamDrawer() {
                                 {agent()?.name ?? "Unknown Agent"}
                               </span>
                               <Show when={member.isLead}>
-                                <span class="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1 rounded font-medium">
+                                <span class="text-[9px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1 py-0.2 rounded font-medium">
                                   Lead
                                 </span>
                               </Show>
                             </div>
-                            <div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                              <span class="truncate">
-                                {member.modelOverride || agent()?.model || "Default Model"}
-                              </span>
-                              <Show when={badge()}>
-                                {(b) => (
-                                  <span class={`text-[9px] px-1 rounded font-medium ${b().color}`}>
-                                    {b().label}
-                                  </span>
-                                )}
-                              </Show>
-                            </div>
+                            <span class="text-[10px] text-muted-foreground truncate">
+                              {agent()?.provider} / {agent()?.model}
+                            </span>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          class="p-1 rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          onClick={() => void handleRemoveMember(member.agentId)}
-                          title="Remove from thread (old work remains visible)"
-                        >
-                          <UserMinus class="size-3.5" />
-                        </button>
+                        <Show when={!member.isLead}>
+                          <IconButton
+                            label="Remove agent"
+                            variant="ghost"
+                            class="text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => void handleRemoveMember(member.agentId)}
+                          >
+                            <UserMinus class="size-3.5" />
+                          </IconButton>
+                        </Show>
                       </div>
                     );
                   }}
@@ -201,45 +199,32 @@ export function ProjectTeamDrawer() {
             </Show>
           </div>
 
-          {/* Inactive / Removed Members (Grayed out with full history preserved) */}
+          {/* Inactive Members Section */}
           <Show when={inactiveMembers().length > 0}>
-            <div class="flex flex-col gap-2 pt-2 border-t border-border/50">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Past Members ({inactiveMembers().length})
-                </span>
-                <span class="text-[10px] text-muted-foreground">Context preserved</span>
-              </div>
-
+            <div class="flex flex-col gap-2">
+              <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Previous Members ({inactiveMembers().length})
+              </span>
               <div class="flex flex-col gap-1.5">
                 <For each={inactiveMembers()}>
                   {(member) => {
                     const agent = () => agentList().find((a) => a.id === member.agentId);
                     return (
-                      <div class="flex items-center justify-between p-2 rounded-lg border border-dashed border-border/40 bg-muted/20 opacity-60 hover:opacity-100 transition-opacity">
-                        <div class="flex items-center gap-2.5 min-w-0">
-                          <div class="size-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-xs shrink-0 grayscale">
+                      <div class="flex items-center justify-between p-2 rounded-lg border border-border/30 bg-muted/20 opacity-75 hover:opacity-100 transition-opacity">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <div class="size-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-[11px] shrink-0">
                             {agent()?.name.charAt(0) ?? "A"}
                           </div>
-                          <div class="flex flex-col min-w-0">
-                            <span class="text-xs font-medium text-foreground truncate">
-                              {agent()?.name ?? "Former Agent"}
-                            </span>
-                            <span class="text-[10px] text-muted-foreground">
-                              Removed • Previous transcripts intact
-                            </span>
-                          </div>
+                          <span class="text-xs text-foreground truncate">{agent()?.name}</span>
                         </div>
-
-                        <button
-                          type="button"
-                          class="flex items-center gap-1 rounded bg-accent px-2 py-1 text-[11px] font-medium text-accent-foreground hover:bg-primary hover:text-primary-foreground transition-colors"
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => projects.setReaddModalMember(member)}
-                          title="Re-add this agent to the thread"
                         >
-                          <RotateCcw class="size-3" />
-                          <span>Re-add</span>
-                        </button>
+                          <RotateCcw class="size-3 mr-1" />
+                          Re-add
+                        </Button>
                       </div>
                     );
                   }}
@@ -248,7 +233,7 @@ export function ProjectTeamDrawer() {
             </div>
           </Show>
 
-          {/* Add New Agent to Thread */}
+          {/* Add Agent to Thread */}
           <div class="flex flex-col gap-3 pt-3 border-t border-border/50">
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -263,7 +248,7 @@ export function ProjectTeamDrawer() {
                 }}
               >
                 <Plus class="size-3" />
-                <span>Create New Agent</span>
+                <span>New Agent</span>
               </button>
             </div>
 
@@ -276,35 +261,31 @@ export function ProjectTeamDrawer() {
               }
             >
               <div class="flex flex-col gap-2.5 bg-muted/30 p-3 rounded-lg border border-border/40">
-                <div class="flex flex-col gap-1">
-                  <label class="text-[11px] font-medium text-muted-foreground">
-                    Select Agent
-                  </label>
-                  <select
-                    class="rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
-                    value={selectedAgentId()}
-                    onChange={(e) => setSelectedAgentId(e.currentTarget.value)}
-                  >
-                    <option value="">Choose an agent...</option>
-                    <For each={availableAgentsToAdd()}>
-                      {(agent) => (
-                        <option value={agent.id}>
-                          {agent.name} ({agent.provider} / {agent.model})
-                        </option>
-                      )}
-                    </For>
-                  </select>
-                </div>
+                <Select<AgentOption>
+                  options={availableAgentOptions()}
+                  value={selectedAgentOption()}
+                  onChange={(opt) => setSelectedAgentId(opt?.id ?? "")}
+                  itemComponent={(item) => (
+                    <SelectItem item={item.item}>{item.item.rawValue.name}</SelectItem>
+                  )}
+                >
+                  <SelectTrigger size="sm">
+                    <SelectValue<AgentOption>>
+                      {(state) => state.selectedOption()?.name ?? "Choose an agent..."}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent />
+                </Select>
 
-                <button
-                  type="button"
-                  class="flex items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 px-3 text-xs font-medium text-primary-foreground shadow-sm hover:opacity-90 disabled:opacity-50 transition-opacity"
+                <Button
+                  variant="primary"
+                  size="sm"
                   disabled={!selectedAgentId()}
                   onClick={() => void handleAddAgent()}
                 >
-                  <UserPlus class="size-3.5" />
-                  <span>Add to #{activeThread()?.name ?? "Workstream"}</span>
-                </button>
+                  <UserPlus class="size-3.5 mr-1" />
+                  Add to #{activeThread()?.name ?? "Workstream"}
+                </Button>
               </div>
             </Show>
           </div>
@@ -321,54 +302,46 @@ export function ProjectTeamDrawer() {
                     <h3 class="text-sm font-semibold text-foreground">
                       Re-add {agent()?.name}
                     </h3>
-                    <button
-                      type="button"
-                      class="text-muted-foreground hover:text-foreground"
+                    <IconButton
+                      label="Close"
+                      variant="ghost"
                       onClick={() => projects.setReaddModalMember(null)}
                     >
                       <X class="size-4" />
-                    </button>
+                    </IconButton>
                   </div>
 
                   <p class="text-xs text-muted-foreground">
-                    How should {agent()?.name} rejoin #{activeThread()?.name}?
+                    Choose how this agent resumes working on this workstream:
                   </p>
 
                   <div class="flex flex-col gap-2">
-                    {/* Keep Memory Intact Option */}
                     <button
                       type="button"
-                      class="flex flex-col gap-1 p-3 rounded-lg border border-primary/40 bg-primary/5 hover:bg-primary/10 text-left transition-colors"
-                      onClick={() => void handleReaddConfirm("intact")}
-                    >
-                      <div class="flex items-center justify-between">
-                        <span class="text-xs font-semibold text-primary flex items-center gap-1.5">
-                          <History class="size-3.5" />
-                          Keep Memory Intact (Recommended)
-                        </span>
-                        <span class="text-[9px] bg-primary text-primary-foreground px-1.5 py-0.2 rounded font-medium">
-                          Catch-Up
-                        </span>
-                      </div>
-                      <p class="text-[11px] text-muted-foreground">
-                        Retains full conversation memory. The orchestrator will provide an automated
-                        catch-up briefing of all thread updates while away.
-                      </p>
-                    </button>
-
-                    {/* Fresh Start Option */}
-                    <button
-                      type="button"
-                      class="flex flex-col gap-1 p-3 rounded-lg border border-border bg-card hover:bg-accent text-left transition-colors"
+                      class="flex flex-col p-2.5 rounded-lg border border-border hover:border-primary bg-background text-left transition-colors cursor-pointer"
                       onClick={() => void handleReaddConfirm("fresh")}
                     >
-                      <span class="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                        <Sparkles class="size-3.5 text-muted-foreground" />
-                        Fresh Start
+                      <span class="text-xs font-semibold text-foreground flex items-center gap-1">
+                        <Sparkles class="size-3 text-primary" />
+                        Fresh Context
                       </span>
-                      <p class="text-[11px] text-muted-foreground">
-                        Joins cleanly without previous conversational baggage or memory dependencies.
-                      </p>
+                      <span class="text-[10px] text-muted-foreground mt-0.5">
+                        Start with a clean context window for this thread.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      class="flex flex-col p-2.5 rounded-lg border border-border hover:border-primary bg-background text-left transition-colors cursor-pointer"
+                      onClick={() => void handleReaddConfirm("resume")}
+                    >
+                      <span class="text-xs font-semibold text-foreground flex items-center gap-1">
+                        <History class="size-3 text-emerald-500" />
+                        Resume History
+                      </span>
+                      <span class="text-[10px] text-muted-foreground mt-0.5">
+                        Retain previous conversation and work context.
+                      </span>
                     </button>
                   </div>
                 </div>

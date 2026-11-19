@@ -119,7 +119,7 @@ export function WorkspaceShell(props: {
     if (chatWindow) return "agent";
     if (windowPage.page() === "tasks") return "tasks";
     if (agentSetupOpen()) return "agent-setup";
-    if (layout.sidebarView() === "projects" || projects.activeProjectId()) return "project";
+    if (layout.sidebarView() === "projects") return "project";
     if (channelOpen()) return "channel";
     if (activeDirectMember()) return "direct";
     return layout.sidebarView() === "routines" ? "routines" : "agent";
