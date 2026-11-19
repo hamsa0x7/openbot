@@ -52,29 +52,41 @@ export async function installRemoteDesktopRuntime(
     return "current";
   }
 
-  const releaseResponse = await fetchImpl(
-    `https://api.github.com/repos/${release.repository}/releases/tags/${encodeURIComponent(release.tag)}`,
-    {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "OpenBot-runtime-installer",
-        ...(githubToken ? { Authorization: `Bearer ${githubToken}` } : {}),
-      },
-    },
-  );
-  if (!releaseResponse.ok) throw new Error(`Runtime release lookup failed with HTTP ${releaseResponse.status}.`);
-  const githubRelease = githubReleaseSchema.parse(await releaseResponse.json());
-  validateGitHubRelease(githubRelease, release.tag);
+  let manifestUrl = `https://github.com/${release.repository}/releases/download/${encodeURIComponent(release.tag)}/${release.manifestAsset}`;
+  let archiveUrl = `https://github.com/${release.repository}/releases/download/${encodeURIComponent(release.tag)}/${artifact.asset}`;
 
-  const manifestAsset = findAsset(githubRelease, release.manifestAsset);
-  const manifestBytes = await download(fetchImpl, manifestAsset.browser_download_url, "Runtime asset");
+  try {
+    const releaseResponse = await fetchImpl(
+      `https://api.github.com/repos/${release.repository}/releases/tags/${encodeURIComponent(release.tag)}`,
+      {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "OpenBot-runtime-installer",
+          ...(githubToken ? { Authorization: `Bearer ${githubToken}` } : {}),
+        },
+      },
+    );
+    if (releaseResponse.ok) {
+      const githubRelease = githubReleaseSchema.parse(await releaseResponse.json());
+      validateGitHubRelease(githubRelease, release.tag);
+      manifestUrl = findAsset(githubRelease, release.manifestAsset).browser_download_url;
+      archiveUrl = findAsset(githubRelease, artifact.asset).browser_download_url;
+    } else {
+      logger.warn(
+        `GitHub API release lookup returned HTTP ${releaseResponse.status}, falling back to direct release asset URLs.`,
+      );
+    }
+  } catch (error) {
+    logger.warn("GitHub API release lookup failed, falling back to direct release asset URLs:", error);
+  }
+
+  const manifestBytes = await download(fetchImpl, manifestUrl, "Runtime asset");
   if (sha256(manifestBytes) !== release.manifestSha256)
     throw new Error("The runtime release manifest checksum is invalid.");
   const manifest = parseReleaseManifest(JSON.parse(manifestBytes.toString("utf8")));
   validateManifest(lock, manifest, target);
 
-  const archiveAsset = findAsset(githubRelease, artifact.asset);
-  const archiveBytes = await download(fetchImpl, archiveAsset.browser_download_url, "Runtime asset");
+  const archiveBytes = await download(fetchImpl, archiveUrl, "Runtime asset");
   if (sha256(archiveBytes) !== artifact.sha256) throw new Error(`The ${target} runtime archive checksum is invalid.`);
 
   const temporaryRoot = await mkdtemp(join(tmpdir(), "openbot-runtime-install-"));
